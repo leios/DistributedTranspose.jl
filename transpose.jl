@@ -1,4 +1,4 @@
-sing CuArrays, CUDAnative, CUDAdrv, LinearAlgebra, MPI
+using CuArrays, CUDAnative, CUDAdrv, LinearAlgebra, MPI
 
 function copy(a, b)
     x = (blockIdx().x-1)*blockDim().x + threadIdx().x
@@ -28,7 +28,7 @@ function gpu_transpose_wblocks(a, b, res)
     ybound = Int(ceil(size(a,1)/res))
     for i = 1:xbound
         for j = 1:ybound
-            if ((i-1)*res + x <= size(a,2) && (j-1)*res + x <= size(a,1))
+            if ((i-1)*res + x <= size(a,2) && (j-1)*res + y <= size(a,1))
                 @inbounds b[(i-1)*res + x, (j-1)*res + y] = a[y + (j-1)*res, (i-1)*res + x]
                 #@cuprintf("%ld\t%ld\t%ld\t%ld\n", (i-1)*res + x, (j-1)*res + y, y + (j-1)*res, (i-1)*res + x)
             end
@@ -105,9 +105,9 @@ function dist_transpose(a, tile_size, comm)
     for r = 1:mpisize
         for i = 1:Int(ceil(size(a,2)/tile_size))
             @cuda threads = (tile_size, 1, 1) blocks = (1, tile_size, 1) gpu_transpose_wblocks(a[:,(i-1)*tile_size+1:i*tile_size], tile, tile_size)
-            src = mod(rank + 1, mpisize)
-            println("i is: ",i)
+            #println("i is: ",i, " and r is: ", r)
             if (i != rank+1)
+                src = i-1
                 tile_temp = similar(tile)
                 rreq = MPI.Irecv!(tile_temp,src,src+r*10,comm)
                 sreq = MPI.Isend(tile,src,rank+r*10,comm)
@@ -129,14 +129,14 @@ function dist_transpose(a, tile_size, comm)
     return a
 end
 
-function create_dist_matrix(res, comm)
+function create_dist_matrix(resx, resy, comm)
 
     rank = MPI.Comm_rank(comm)
     size = MPI.Comm_size(comm)
 
-    width = Int(ceil(res/size))
-    a = zeros(width, res)
-    for i = 1:res
+    width = Int(ceil(resy/size))
+    a = zeros(width, resx)
+    for i = 1:resx
         for j = 1:width
             a[j,i] = float(j + rank*width)
         end
@@ -152,7 +152,6 @@ function create_dist_matrix(res, comm)
     return CuArray(a)
 
 end
-
 
 function main()
     MPI.Init()
@@ -176,8 +175,8 @@ function main()
     GPU_transfer_test(comm)
 =#
 
-    a = create_dist_matrix(6,comm)
-    b = dist_transpose(a, 3, comm)
+    a = create_dist_matrix(12, 12,comm)
+    b = dist_transpose(a, 4, comm)
 
     MPI.Finalize()
 end
