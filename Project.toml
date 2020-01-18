@@ -1,0 +1,4 @@
+name = "DistributedTranspose"
+uuid = "0317737e-4a77-4bb9-88a0-d62401d2c77a"
+authors = ["leios <jrs.schloss@gmail.com>"]
+version = "0.1.0"
